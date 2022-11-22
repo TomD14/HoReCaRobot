@@ -1,136 +1,287 @@
-# Load Wi-Fi library
-import <WiFi.h>
+# Complete project details at https://RandomNerdTutorials.com
 
-# Replace with your network credentials
-const char* ssid     = "ESP32-Access-Point";
-const char* password = "123456789";
+try:
+  import usocket as socket
+except:
+  import socket
 
-# Set web server port number to 80
-WiFiServer server(80);
+import re
 
-# Variable to store the HTTP request
-String header;
+from tof_i2c import TOF10120
+tof=TOF10120()
 
-# Auxiliar variables to store the current output state
-String output26State = "off";
-String output27State = "off";
+import network
+from machine import Pin
+from neopixel import NeoPixel
+import time
+import math
 
-# Assign output variables to GPIO pins
-const int output26 = 26;
-const int output27 = 27;
+import esp
+esp.osdebug(None)
 
-void setup() {
-  Serial.begin(115200);
-  # Initialize the output variables as outputs
-  pinMode(output26, OUTPUT);
-  pinMode(output27, OUTPUT);
-  # Set outputs to LOW
-  digitalWrite(output26, LOW);
-  digitalWrite(output27, LOW);
+import gc
+gc.collect()
 
-  # Connect to Wi-Fi network with SSID and password
-  Serial.print("Setting AP (Access Point)…");
-  # Remove the password parameter, if you want the AP (Access Point) to be open
-  WiFi.softAP(ssid, password);
+ssid = 'MicroPython-AP'
+password = 'ESPHoeWerktDit'
 
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
-  
-  server.begin();
-}
+ap = network.WLAN(network.AP_IF)
+ap.active(True)
+ap.config(essid=ssid, password=password)
+ap.config(authmode=3)
 
-void loop(){
-  WiFiClient client = server.available();   // Listen for incoming clients
+while ap.active() == False:
+  pass
 
-  if (client) {                             // If a new client connects,
-    Serial.println("New Client.");          // print a message out in the serial port
-    String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected()) {            // loop while the clients connected
-      if (client.available()) {             // if theres bytes to read from the client,
-        char c = client.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
-        header += c;
-        if (c == '\n') {                    // if the byte is a newline character
-          # if the current line is blank, you got two newline characters in a row.
-          # thats the end of the client HTTP request, so send a response:
-          if (currentLine.length() == 0) {
-            # HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            # and a content-type so the client knows whats coming, then a blank line:
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
-            client.println("Connection: close");
-            client.println();
+print('Connection successful')
+print(ap.ifconfig())
+
+led = Pin(22, Pin.OUT)
+counter = 0
+maxLeds = 1
+
+class LightControls:
+
+    def __init__(self): # dit is de constructor, wordt uitgevoerd tijdens object creatie
+            self.size = 30
+            self.p = Pin(15)
+            self.pn = NeoPixel(self.p,30,bpp=4)
+
+    def Left(self):
+        i = 0 # teller hoeveel leds al actief zijn
+        for p in range(self.pn.n):
+            if 5 > i:
+                self.pn[p] = (255,0,0,0)
+                print(p)
+            else:
+                self.pn[p] = (0,32,0,0)
+                print('Green')
+            i = i+1
+                
+        self.pn.write()
             
-            # turns the GPIOs on and off
-            if (header.indexOf("GET /26/on") >= 0) {
-              Serial.println("GPIO 26 on");
-              output26State = "on";
-              digitalWrite(output26, HIGH);
-            } else if (header.indexOf("GET /26/off") >= 0) {
-              Serial.println("GPIO 26 off");
-              output26State = "off";
-              digitalWrite(output26, LOW);
-            } else if (header.indexOf("GET /27/on") >= 0) {
-              Serial.println("GPIO 27 on");
-              output27State = "on";
-              digitalWrite(output27, HIGH);
-            } else if (header.indexOf("GET /27/off") >= 0) {
-              Serial.println("GPIO 27 off");
-              output27State = "off";
-              digitalWrite(output27, LOW);
-            }
+    def Front(self):
+        i = 0 # teller hoeveel leds al actief zijn
+        for p in range(self.pn.n):
+            if i > 5 and i < 11:
+                self.pn[p] = (255,0,0,0)
+                print('rood')
+                print(p)
+            else:
+                self.pn[p] = (0,32,0,0)
+                print('green')
+                print(i)
+                    
+            i = i+1
+        self.pn.write()
+        
+    def Right(self):
+        i = 0 # teller hoeveel leds al actief zijn
+        for p in range(self.pn.n):
+            if i > 11 and i < 17:
+                self.pn[p] = (255,0,0,0)
+                print('rood')
+                print(p)
+            else:
+                self.pn[p] = (0,32,0,0)
+                print('green')
+                print(i)
+                    
+            i = i+1
+        self.pn.write()
             
-            # Display the HTML web page
-            client.println("<!DOCTYPE html><html>");
-            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-            client.println("<link rel=\"icon\" href=\"data:,\">");
-            # CSS to style the on/off buttons 
-            # Feel free to change the background-color and font-size attributes to fit your preferences
-            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
-            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-            client.println(".button2 {background-color: #555555;}</style></head>");
             
-            # Web Page Heading
-            client.println("<body><h1>ESP32 Web Server</h1>");
+    def Closing(self, side, distance, ledWidth):
+        i = side - ledWidth
+        y = 1 + ledWidth*2
+        x = math.floor(2000 / y)
+        greenRange = 0
+        redRange = 0 - math.ceil(y/2)
+        green = math.ceil(y/2)
+        red = green*2
+        Semitop = x*(y - 1)
+        
+        while y >= 0:
+            cap = x*y
+            if cap != 0:
+                print('y value = ' + str(y))
+                print('x*y value = ' + str(x*y))
+                if distance <= 2000 and distance > Semitop and green >= 1:
+                    offLeds = i
+                    while offLeds <= side + ledWidth:
+                        if offLeds == side:
+                            self.pn[offLeds] = (0,60,0,0)
+                        else:
+                            self.pn[offLeds] = (0,0,0,0)
+                        offLeds = offLeds + 1
+                elif distance <= x*y and distance > x*(y-1) and green >= 1:
+                    leds = i + green - 1
+                    offLeds = i
+                    while offLeds <= side + ledWidth:
+                        if offLeds == leds and leds <= side + greenRange:
+                            print('GROENE ledjes = ' + str(leds))
+                            print('TOP limiet = ' + str(side + greenRange))
+                            self.pn[offLeds] = (0,60,0,0)
+                            leds = leds + 1
+                        else:
+                            self.pn[offLeds] = (0,0,0,0)
+                        offLeds = offLeds + 1
+                            
+                elif distance <= x*y and distance > x*(y-1) and green <= 0:
+                    leds = i + red - 1
+                    offLeds = i
+                    while offLeds <= side + ledWidth:
+                        if offLeds == leds and leds <= side + redRange:
+                            print('ROODe ledjes = ' + str(leds))
+                            self.pn[leds] = (60,0,0,0)
+                            leds = leds + 1
+                        else:
+                            self.pn[offLeds] = (0,60,0,0)
+                        offLeds = offLeds + 1
+
+            elif distance <= 100:
+                leds = i
+                print('bodem waarde')
+                while leds <= side + ledWidth:
+                    self.pn[leds] = (60,0,0,0)
+                    leds = leds + 1
+            green = green - 1
+            red = red - 1
+            y = y - 1
+            greenRange = greenRange + 1
+            redRange = redRange + 1
             
-            # Display current state, and ON/OFF buttons for GPIO 26  
-            client.println("<p>GPIO 26 - State " + output26State + "</p>");
-            # If the output26State is off, it displays the ON button       
-            if (output26State=="off") {
-              client.println("<p><a href=\"/26/on\"><button class=\"button\">ON</button></a></p>");
-            } else {
-              client.println("<p><a href=\"/26/off\"><button class=\"button button2\">OFF</button></a></p>");
-            } 
-               
-            # Display current state, and ON/OFF buttons for GPIO 27  
-            client.println("<p>GPIO 27 - State " + output27State + "</p>");
-            # If the output27State is off, it displays the ON button       
-            if (output27State=="off") {
-              client.println("<p><a href=\"/27/on\"><button class=\"button\">ON</button></a></p>");
-            } else {
-              client.println("<p><a href=\"/27/off\"><button class=\"button button2\">OFF</button></a></p>");
-            }
-            client.println("</body></html>");
+        self.pn.write()
+                
+
+                    
             
-            # The HTTP response ends with another blank line
-            client.println();
-            # Break out of the while loop
-            break;
-          } else { // if you got a newline, then clear currentLine
-            currentLine = "";
-          }
-        } else if (c != '\r') {  # if you got anything else but a carriage return character,
-          currentLine += c;      # add it to the end of the currentLine
-        }
-      }
-    }
-    # Clear the header variable
-    header = "";
-    # Close the connection
-    client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
-  }
-}
+    def Back(self):
+        i = 0 # teller hoeveel leds al actief zijn
+        for p in range(self.pn.n):
+            if i > 17 and i < 23:
+                self.pn[p] = (255,0,0,0)
+                print('rood')
+                print(p)
+            else:
+                self.pn[p] = (0,32,0,0)
+                print('green')
+                print(i)
+                    
+            i = i+1
+        self.pn.write()
+            
+    def off(self):
+        for p in range(self.pn.n):
+            # print(p)
+            self.pn[p] = (0,0,0,0)
+        self.pn.write()
+
+    def web_page(self):
+      html = """
+        <html>
+        <head>
+        <title>ESP Web Server</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" href="data:,">
+        <style>html{font-family: Helvetica; display:inline-block; margin: 0px auto; text-align: center;}
+          h1{color: #0F3376; padding: 2vh;}p{font-size: 1.5rem;}
+          .button{display: inline-block; background-color: #e7bd3b; border: none; 
+          border-radius: 4px; color: white; padding: 16px 40px; text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}
+          .button2{background-color: #4286f4;}
+          .button3{background-color: #10E109;}
+        </style>
+        </head>
+        <body> <h1>ESP Web Server</h1> 
+          <p><a href="/?NeoFront"><button class="button">Front</button></a></p>
+          <p><a href="/?NeoLeft"><button class="button">Left</button></a>
+          <a href="/?NeoRight"><button class="button">Right</button></a></p>
+          <p><a href="/?NeoBack"><button class="button">Back</button></a></p>
+          <form action="/get">
+            afstand tot sensor: <input type="number" name="input1">
+            <input type="submit" value="Submit">
+          </form>
+          <form action="/get">
+            led breedte: <input type="number" name="input2">
+            <input type="submit" value="Submit">
+          </form>
+          <p><a href="/?NeoDistanceToggleON"><button class="button button3">TOF example 10 sec/button></a></p>
+          <p><a href="/?NeoOff"><button class="button button2">OFF</button></a></p>
+        </body>
+        </html>
+        """
+      return html
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('', 80))
+s.listen(5)
+
+LC = LightControls()
+
+while True:
+    conn, addr = s.accept()
+    print('Got a connection from %s' % str(addr))
+    request = conn.recv(1024)
+    request = str(request)
+    print('Content = %s' % str(request))
+    Left = request.find('/?NeoLeft')
+    Off = request.find('/?NeoOff')
+    Front = request.find('/?NeoFront')
+    Right = request.find('/?NeoRight')
+    Back = request.find('/?NeoBack')
+    toggleon = request.find('/?NeoDistanceToggleON')
+    ManualInput1 = request.find('/get?input1=')
+    ManualInput2 = request.find('/get?input2=')
+    
+    ToggleBool = 1
+    extrabool = 0
+
+    if toggleon == 6:
+        ToggleBool = 0
+        print('TOF On')
+        counter = 0
+        
+    if Left == 6:
+        LC.Left()
+        print('Left')
+    if Off == 6:
+        LC.off()
+        print('off')
+    if Front == 6:
+        LC.Front()
+        print('Front')
+    if Right == 6:
+        LC.Right()
+        print('Right')
+    if Back == 6:
+        LC.Back()
+        print('Back')
+    if ManualInput1 == 6:
+        num = request.find('HTTP')
+        input1 = int(request[18:num])
+        LC.Closing(0, input1, maxLeds)
+        print('Closing ' + str(input1) + ' distance')
+    if ManualInput2 == 6:
+        maxLeds = int(request[18:19])
+        print('new maxLeds = ' + str(maxLeds))
+        
+    while ToggleBool == 0:
+        time.sleep_ms(100)
+        distance = tof.get_distance_filtered()
+        print(distance)
+        LC.Closing(10, distance, maxLeds)
+        counter = counter + 1
+        print('distance ' + str(distance))
+        print('tijd ' + str(counter))
+        if counter >= 100:
+            ToggleBool = 1
+            LC.off()
+    
+        
+        
+    response = LC.web_page()
+    conn.send(response)
+    conn.close()
+    
+
+    
