@@ -192,11 +192,13 @@ class LightControls:
           .button3{background-color: #10E109;}
         </style>
         </head>
-        <body> <h1>ESP Web Server</h1> 
+        <body> <h1>Compass navigation</h1> 
           <p><a href="/?NeoFront"><button class="button">Front</button></a></p>
           <p><a href="/?NeoLeft"><button class="button">Left</button></a>
           <a href="/?NeoRight"><button class="button">Right</button></a></p>
           <p><a href="/?NeoBack"><button class="button">Back</button></a></p>
+          <p></p>
+          <h1>Closing system</h1>
           <form action="/get">
             afstand tot sensor: <input type="number" name="input1">
             <input type="submit" value="Submit">
@@ -205,7 +207,10 @@ class LightControls:
             led breedte: <input type="number" name="input2">
             <input type="submit" value="Submit">
           </form>
-          <p><a href="/?NeoDistanceToggleON"><button class="button button3">TOF example 10 sec/button></a></p>
+          <p><a href="/?NeoDistanceToggleON"><button class="button button3">TOF example 10 sec</button></a></p>
+          <p></p>
+          <p></p>
+          <h1>General buttons</h1>
           <p><a href="/?NeoOff"><button class="button button2">OFF</button></a></p>
         </body>
         </html>
@@ -259,7 +264,7 @@ while True:
     if ManualInput1 == 6:
         num = request.find('HTTP')
         input1 = int(request[18:num])
-        LC.Closing(0, input1, maxLeds)
+        LC.Closing(10, input1, maxLeds)
         print('Closing ' + str(input1) + ' distance')
     if ManualInput2 == 6:
         maxLeds = int(request[18:19])
